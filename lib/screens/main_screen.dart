@@ -8,8 +8,8 @@ import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart'; // <-- ADDED FOR SECURE .ENV
-import 'package:http/http.dart' as http;            // <-- ADDED FOR API CALLS
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -267,7 +267,6 @@ class AiService {
           'messages': [
             {
               'role': 'system',
-              // --- UPDATED PROMPT: More informative, no emojis ---
               'content': 'You are an expert interior designer and color theorist. Provide 2 informative and practical interior design tips for using the paint color "$colorName" (HEX: $hex). Include suggestions for complementary accent colors, ideal room types, or lighting conditions. Do not use any emojis in your response. Keep the total response concise, under 250 characters.'
             }
           ],
@@ -321,7 +320,6 @@ class _MyWidgetState extends State<MyWidget> {
   SharedPreferences? _prefs;
   int _currentMode = 0; 
 
-  // --- NEW: AI STATE VARIABLES ---
   final AiService _aiService = AiService();
   String _aiSuggestion = '';
   bool _isAiLoading = false;
@@ -516,12 +514,11 @@ class _MyWidgetState extends State<MyWidget> {
     _saveHistoryToStorage();
   }
 
-  // --- NEW: AI SUGGESTION METHOD ---
   Future<void> _getAiSuggestion() async {
     HapticFeedback.mediumImpact();
     setState(() {
       _isAiLoading = true;
-      _aiSuggestion = 'Consulting design oracle... ';
+      _aiSuggestion = 'Consulting design oracle...';
     });
 
     final suggestion = await _aiService.getDesignSuggestions(_colorName, _hexCode);
@@ -550,12 +547,13 @@ class _MyWidgetState extends State<MyWidget> {
               height: 48,
               alignment: Alignment.center,
               decoration: BoxDecoration(
+                // --- UNIFIED DARK GLASSMORPHISM ---
                 color: isActive
-                    ? Colors.white.withOpacity(0.18)
-                    : Colors.white.withOpacity(0.08),
+                    ? Colors.black.withOpacity(0.6)
+                    : Colors.black.withOpacity(0.4),
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
-                  color: Colors.white.withOpacity(0.15),
+                  color: Colors.white.withOpacity(0.2),
                   width: 1,
                 ),
               ),
@@ -705,9 +703,10 @@ class _MyWidgetState extends State<MyWidget> {
                 child: Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.08),
+                    // --- UNIFIED DARK GLASSMORPHISM ---
+                    color: Colors.black.withOpacity(0.4),
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Colors.white.withOpacity(0.15), width: 1),
+                    border: Border.all(color: Colors.white.withOpacity(0.2), width: 1),
                   ),
                   child: Row(
                     children: [
@@ -750,11 +749,11 @@ class _MyWidgetState extends State<MyWidget> {
                         ],
                       ),
                       const SizedBox(width: 12),
-                      // --- SAVE BUTTON ---
                       Container(
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.15),
+                          color: Colors.black.withOpacity(0.4),
                           shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white.withOpacity(0.2), width: 1),
                         ),
                         child: IconButton(
                           icon: const Icon(Icons.save, color: Colors.white, size: 18),
@@ -764,11 +763,11 @@ class _MyWidgetState extends State<MyWidget> {
                         ),
                       ),
                       const SizedBox(width: 12),
-                      // --- NEW: AI INSPIRE BUTTON ---
                       Container(
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.15),
+                          color: Colors.black.withOpacity(0.4),
                           shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white.withOpacity(0.2), width: 1),
                         ),
                         child: IconButton(
                           icon: _isAiLoading
@@ -793,10 +792,10 @@ class _MyWidgetState extends State<MyWidget> {
             ),
           ),
 
-          // --- NEW: AI SUGGESTION PANEL ---
-          if (_aiSuggestion.isNotEmpty && _aiSuggestion != 'Consulting design oracle... ')
+          // 4. AI Suggestion Panel
+          if (_aiSuggestion.isNotEmpty && _aiSuggestion != 'Consulting design oracle...')
             Positioned(
-              top: 180,
+              top: 210,
               right: 16,
               left: 16,
               child: ClipRRect(
@@ -841,7 +840,7 @@ class _MyWidgetState extends State<MyWidget> {
               ),
             ),
 
-          // 4. Draggable Crosshair
+          // 5. Draggable Crosshair
           Positioned(
             left: _cursorPosition.dx - 20, 
             top: _cursorPosition.dy - 20,
@@ -850,14 +849,17 @@ class _MyWidgetState extends State<MyWidget> {
                 _isDraggingCursor = true;
               },
               onPanUpdate: (details) {
+                // FIX: Removed _readPixelAt from here to eliminate lag. 
+                // setState is lightweight and keeps the drag buttery smooth.
                 setState(() {
                   _cursorPosition += details.delta;
                 });
-                _readPixelAt(_cursorPosition);
               },
               onPanEnd: (_) {
                 _isDraggingCursor = false;
                 HapticFeedback.mediumImpact();
+                // Read the final position immediately after dragging stops
+                _readPixelAt(_cursorPosition);
               },
               child: Container(
                 width: 40,
@@ -865,10 +867,11 @@ class _MyWidgetState extends State<MyWidget> {
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   border: Border.all(color: Colors.white, width: 1.5),
-                  color: Colors.black.withOpacity(0.1),
+                  // --- UNIFIED DARK GLASSMORPHISM ---
+                  color: Colors.black.withOpacity(0.4),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.3),
+                      color: Colors.black.withOpacity(0.5),
                       blurRadius: 8,
                       spreadRadius: 2,
                     ),
@@ -879,7 +882,7 @@ class _MyWidgetState extends State<MyWidget> {
             ),
           ),
 
-          // 5. Bottom History Sheet
+          // 6. Bottom History Sheet
           DraggableScrollableSheet(
             initialChildSize: 0.12,
             minChildSize: 0.12,
@@ -891,9 +894,10 @@ class _MyWidgetState extends State<MyWidget> {
                   filter: ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
                   child: Container(
                     decoration: BoxDecoration(
-                      color: Colors.transparent,
+                      // --- UNIFIED DARK GLASSMORPHISM ---
+                      color: Colors.black.withOpacity(0.4),
                       borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-                      border: Border(top: BorderSide(color: Colors.white.withOpacity(0.25), width: 1)),
+                      border: Border(top: BorderSide(color: Colors.white.withOpacity(0.2), width: 1)),
                     ),
                     child: Column(
                       children: [
@@ -939,9 +943,10 @@ class _MyWidgetState extends State<MyWidget> {
                                 child: Container(
                                   padding: const EdgeInsets.all(10),
                                   decoration: BoxDecoration(
-                                    color: Colors.white.withOpacity(0.08),
+                                    // --- UNIFIED DARK GLASSMORPHISM ---
+                                    color: Colors.black.withOpacity(0.4),
                                     borderRadius: BorderRadius.circular(16),
-                                    border: Border.all(color: Colors.white.withOpacity(0.15), width: 1),
+                                    border: Border.all(color: Colors.white.withOpacity(0.2), width: 1),
                                   ),
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
