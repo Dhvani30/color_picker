@@ -349,7 +349,7 @@ class _MyWidgetState extends State<MyWidget> {
         if (mounted) setState(() {});
       }
     } catch (e) {
-      print('❌ Camera initialization error: $e');
+      print('Camera initialization error: $e');
     }
   }
 
