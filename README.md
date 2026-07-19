@@ -94,7 +94,17 @@ flutter run
 ```bash
 dart run flutter_launcher_icons
 ```
+---
 
+## 📥 Download APK
+
+Want to try the app without building it from source? You can download and install the APK directly on your Android device!
+
+- **Latest Release**: [Download ColorPicker APK](https://github.com/Dhvani30/color_picker/releases/latest) *(Recommended)*
+- **Local Build Path**: If you cloned the repo and built it yourself, the APK is located at:  
+  `build/app/outputs/flutter-apk/app-release.apk`
+
+> *Note: When installing the APK on your Android device, you may need to enable "Install from Unknown Sources" in your device settings.*
 ---
 
 ## 📖 How to Use
