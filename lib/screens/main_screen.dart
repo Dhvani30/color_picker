@@ -8,6 +8,8 @@ import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart'; // <-- ADDED FOR SECURE .ENV
+import 'package:http/http.dart' as http;            // <-- ADDED FOR API CALLS
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -52,7 +54,6 @@ class ColorRecord {
 
 // --- 2. COMPREHENSIVE ASIAN PAINTS DATABASE ---
 final List<Map<String, dynamic>> asianPaintsDatabase = [
-  // --- FROM MELANGE ---
   {'name': 'AP 9101 Purple Verve', 'r': 104, 'g': 58, 'b': 85},
   {'name': 'AP 9102 Deep Passion', 'r': 163, 'g': 105, 'b': 147},
   {'name': 'AP 9103 Fruit Ink', 'r': 193, 'g': 141, 'b': 180},
@@ -121,7 +122,6 @@ final List<Map<String, dynamic>> asianPaintsDatabase = [
   {'name': 'AP 7165 Dark Triumph', 'r': 74, 'g': 61, 'b': 104},
   {'name': 'AP 7166 Intense Purple', 'r': 126, 'g': 111, 'b': 167},
   {'name': 'AP 7167 Tiffany', 'r': 157, 'g': 148, 'b': 195},
-  // --- FROM BRIGHTS ---
   {'name': 'AP X101 Gold Rush', 'r': 218, 'g': 187, 'b': 40},
   {'name': 'AP X102 Mustard Field', 'r': 211, 'g': 177, 'b': 30},
   {'name': 'AP X103 Victorian Gold', 'r': 238, 'g': 196, 'b': 5},
@@ -182,7 +182,6 @@ final List<Map<String, dynamic>> asianPaintsDatabase = [
   {'name': 'AP X158 Forest Glade', 'r': 83, 'g': 134, 'b': 67},
   {'name': 'AP X159 Loud Lime', 'r': 99, 'g': 176, 'b': 36},
   {'name': 'AP X160 Chrome Green', 'r': 107, 'g': 139, 'b': 69},
-  // --- FROM WHITES ---
   {'name': 'AP L101 Swan Wing', 'r': 245, 'g': 241, 'b': 229},
   {'name': 'AP L102 Milky Way', 'r': 243, 'g': 239, 'b': 228},
   {'name': 'AP L103 Pearl Star', 'r': 243, 'g': 239, 'b': 228},
@@ -245,6 +244,49 @@ final List<Map<String, dynamic>> asianPaintsDatabase = [
   {'name': 'AP L160 Soft Silk', 'r': 239, 'g': 233, 'b': 221},
 ];
 
+// --- 3. SECURE CLOUD AI SERVICE (OPENROUTER) ---
+class AiService {
+  Future<String> getDesignSuggestions(String colorName, String hex) async {
+    final String apiKey = dotenv.env['OPENROUTER_API_KEY'] ?? '';
+
+    if (apiKey.isEmpty) {
+      return "API Key missing! Please check your .env file.";
+    }
+
+    try {
+      final response = await http.post(
+        Uri.parse('https://openrouter.ai/api/v1/chat/completions'),
+        headers: {
+          'Authorization': 'Bearer $apiKey',
+          'Content-Type': 'application/json',
+          'HTTP-Referer': 'https://github.com/Dhvani30/color_picker', 
+          'X-Title': 'ChromaPick',
+        },
+        body: jsonEncode({
+          'model': 'qwen/qwen-2.5-7b-instruct', 
+          'messages': [
+            {
+              'role': 'system',
+              // --- UPDATED PROMPT: More informative, no emojis ---
+              'content': 'You are an expert interior designer and color theorist. Provide 2 informative and practical interior design tips for using the paint color "$colorName" (HEX: $hex). Include suggestions for complementary accent colors, ideal room types, or lighting conditions. Do not use any emojis in your response. Keep the total response concise, under 250 characters.'
+            }
+          ],
+          'temperature': 0.7
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return data['choices'][0]['message']['content'].trim();
+      } else {
+        return "AI is busy. Please try again!";
+      }
+    } catch (e) {
+      return "Connection error. Check your internet.";
+    }
+  }
+}
+
 class MyWidget extends StatefulWidget {
   const MyWidget({super.key});
 
@@ -279,13 +321,17 @@ class _MyWidgetState extends State<MyWidget> {
   SharedPreferences? _prefs;
   int _currentMode = 0; 
 
+  // --- NEW: AI STATE VARIABLES ---
+  final AiService _aiService = AiService();
+  String _aiSuggestion = '';
+  bool _isAiLoading = false;
+
   @override
   void initState() {
     super.initState();
     _loadHistoryFromStorage();
     _requestCameraPermission();
     
-    // Start sampling only after the first frame is painted to prevent assertion errors
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _startContinuousSampling();
     });
@@ -354,7 +400,6 @@ class _MyWidgetState extends State<MyWidget> {
   }
 
   Future<void> _freezeFrame() async {
-    // Haptic moved to onPressed to prevent double vibration
     if (_cameraController != null && _cameraController!.value.isInitialized) {
       final file = await _cameraController!.takePicture();
       final bytes = await file.readAsBytes();
@@ -367,7 +412,6 @@ class _MyWidgetState extends State<MyWidget> {
   }
 
   void _resumeCamera() {
-    // Haptic moved to onPressed to prevent double vibration
     setState(() {
       _isFrameFrozen = false;
       _frozenFrameBytes = null;
@@ -376,7 +420,6 @@ class _MyWidgetState extends State<MyWidget> {
   }
 
   Future<void> _pickFromGallery() async {
-    // Haptic moved to onPressed to prevent double vibration
     final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
     if (image != null) {
       final bytes = await image.readAsBytes();
@@ -471,6 +514,22 @@ class _MyWidgetState extends State<MyWidget> {
       ));
     });
     _saveHistoryToStorage();
+  }
+
+  // --- NEW: AI SUGGESTION METHOD ---
+  Future<void> _getAiSuggestion() async {
+    HapticFeedback.mediumImpact();
+    setState(() {
+      _isAiLoading = true;
+      _aiSuggestion = 'Consulting design oracle... ';
+    });
+
+    final suggestion = await _aiService.getDesignSuggestions(_colorName, _hexCode);
+    
+    setState(() {
+      _isAiLoading = false;
+      _aiSuggestion = suggestion;
+    });
   }
 
   Widget _buildControlButton({
@@ -575,7 +634,7 @@ class _MyWidgetState extends State<MyWidget> {
             ),
           ),
          
-          // 2. Top Control Buttons (Explicit Haptic Feedback Added)
+          // 2. Top Control Buttons
           Positioned(
             top: 0,
             left: 0,
@@ -691,6 +750,7 @@ class _MyWidgetState extends State<MyWidget> {
                         ],
                       ),
                       const SizedBox(width: 12),
+                      // --- SAVE BUTTON ---
                       Container(
                         decoration: BoxDecoration(
                           color: Colors.white.withOpacity(0.15),
@@ -703,6 +763,29 @@ class _MyWidgetState extends State<MyWidget> {
                           constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
                         ),
                       ),
+                      const SizedBox(width: 12),
+                      // --- NEW: AI INSPIRE BUTTON ---
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.15),
+                          shape: BoxShape.circle,
+                        ),
+                        child: IconButton(
+                          icon: _isAiLoading
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    color: Colors.white,
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(Icons.auto_awesome, color: Colors.amber, size: 18),
+                          onPressed: _isAiLoading ? null : _getAiSuggestion,
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -710,7 +793,55 @@ class _MyWidgetState extends State<MyWidget> {
             ),
           ),
 
-          // 4. Draggable Crosshair (Haptic Feedback Added on Stop)
+          // --- NEW: AI SUGGESTION PANEL ---
+          if (_aiSuggestion.isNotEmpty && _aiSuggestion != 'Consulting design oracle... ')
+            Positioned(
+              top: 180,
+              right: 16,
+              left: 16,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: BackdropFilter(
+                  filter: ui.ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.4),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.white.withOpacity(0.2), width: 1),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(Icons.auto_awesome, color: Colors.amber, size: 20),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            _aiSuggestion,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 13,
+                              height: 1.4,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close, color: Colors.white54, size: 18),
+                          onPressed: () {
+                            HapticFeedback.selectionClick();
+                            setState(() => _aiSuggestion = '');
+                          },
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+                        )
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
+          // 4. Draggable Crosshair
           Positioned(
             left: _cursorPosition.dx - 20, 
             top: _cursorPosition.dy - 20,
@@ -726,7 +857,6 @@ class _MyWidgetState extends State<MyWidget> {
               },
               onPanEnd: (_) {
                 _isDraggingCursor = false;
-                // HAPTIC: Triggers exactly when the user stops dragging the cursor
                 HapticFeedback.mediumImpact();
               },
               child: Container(
