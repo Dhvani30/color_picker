@@ -844,6 +844,14 @@ class _MyWidgetState extends State<MyWidget> {
                                           letterSpacing: 0.3,
                                         ),
                                       ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        DateFormat('MMM d, h:mm a').format(record.timestamp),
+                                        style: const TextStyle(
+                                          color: Colors.white54,
+                                          fontSize: 8,
+                                        ),
+                                      ),
                                     ],
                                   ),
                                 ),
