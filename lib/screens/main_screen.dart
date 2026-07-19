@@ -451,7 +451,7 @@ class _MyWidgetState extends State<MyWidget> {
     _saveHistoryToStorage();
   }
 
-  // --- NEW CLEAN BUTTON BUILDER ---
+  // --- GLASSMORPHISM BUTTON BUILDER ---
   Widget _buildControlButton({
     required String text,
     required bool isActive,
@@ -460,15 +460,16 @@ class _MyWidgetState extends State<MyWidget> {
     return ElevatedButton(
       onPressed: onPressed,
       style: ElevatedButton.styleFrom(
+        // Pure glass effect: white tint when active, subtle glass when inactive (NO black background)
         backgroundColor: isActive 
-            ? Colors.white.withOpacity(0.95) 
-            : Colors.white.withOpacity(0.1),
+            ? Colors.white 
+            : Colors.white.withOpacity(0.15),
         foregroundColor: isActive ? Colors.black : Colors.white,
         elevation: 0,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(14),
           side: BorderSide(
-            color: Colors.white.withOpacity(isActive ? 0.3 : 0.15),
+            color: Colors.white.withOpacity(isActive ? 0.0 : 0.25),
             width: 1,
           ),
         ),
@@ -476,7 +477,7 @@ class _MyWidgetState extends State<MyWidget> {
       ),
       child: Text(
         text,
-        style: TextStyle(
+        style: const TextStyle(
           fontWeight: FontWeight.w600,
           fontSize: 14,
           letterSpacing: 0.3,
@@ -494,11 +495,11 @@ class _MyWidgetState extends State<MyWidget> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.camera_alt, size: 80, color: Colors.white54),
-              SizedBox(height: 20),
-              Text('Permission Denied', style: TextStyle(color: Colors.white, fontSize: 20)),
-              SizedBox(height: 10),
-              Text('Please grant camera permission in settings', 
+              const Icon(Icons.camera_alt, size: 80, color: Colors.white54),
+              const SizedBox(height: 20),
+              const Text('Permission Denied', style: TextStyle(color: Colors.white, fontSize: 20)),
+              const SizedBox(height: 10),
+              const Text('Please grant camera permission in settings', 
                 style: TextStyle(color: Colors.white54, fontSize: 14),
                 textAlign: TextAlign.center),
             ],
@@ -514,9 +515,9 @@ class _MyWidgetState extends State<MyWidget> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              CircularProgressIndicator(color: Colors.white),
-              SizedBox(height: 20),
-              Text('Loading camera...', style: TextStyle(color: Colors.white, fontSize: 16)),
+              const CircularProgressIndicator(color: Colors.white),
+              const SizedBox(height: 20),
+              const Text('Loading camera...', style: TextStyle(color: Colors.white, fontSize: 16)),
             ],
           ),
         ),
@@ -538,19 +539,21 @@ class _MyWidgetState extends State<MyWidget> {
         children: [
           Column(
             children: [
-              // --- GLASSMORPHISM TOP CONTROL BAR ---
+              // --- PURE GLASSMORPHISM TOP CONTROL BAR ---
               SafeArea(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   child: ClipRRect(
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(18),
                     child: BackdropFilter(
-                      filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                      filter: ui.ImageFilter.blur(sigmaX: 15, sigmaY: 15),
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                         decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.2),
-                          border: Border.all(color: Colors.white.withOpacity(0.15), width: 1),
+                          // Changed from black.withOpacity to white.withOpacity for a clean, light frosted glass look
+                          color: Colors.white.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(color: Colors.white.withOpacity(0.25), width: 1),
                         ),
                         child: Row(
                           children: [
@@ -576,19 +579,28 @@ class _MyWidgetState extends State<MyWidget> {
                               ),
                             ),
                             const SizedBox(width: 12),
-                            SizedBox(
-                              width: 80,
-                              height: 44,
-                              child: _isFrameFrozen
-                                  ? _buildControlButton(
-                                      text: 'Resume',
-                                      isActive: true,
-                                      onPressed: () {
-                                        HapticFeedback.selectionClick();
-                                        _resumeCamera();
-                                      },
-                                    )
-                                  : const SizedBox.shrink(),
+                            // --- FIXED: ALWAYS RENDERED TO PREVENT LAYOUT JUMP ---
+                            Expanded(
+                              child: SizedBox(
+                                height: 44,
+                                child: _isFrameFrozen
+                                    ? _buildControlButton(
+                                        text: 'Resume',
+                                        isActive: true,
+                                        onPressed: () {
+                                          HapticFeedback.selectionClick();
+                                          _resumeCamera();
+                                        },
+                                      )
+                                    : _buildControlButton(
+                                        text: 'Pause',
+                                        isActive: false,
+                                        onPressed: () {
+                                          HapticFeedback.selectionClick();
+                                          _freezeFrame();
+                                        },
+                                      ),
+                              ),
                             ),
                           ],
                         ),
@@ -632,7 +644,7 @@ class _MyWidgetState extends State<MyWidget> {
                               ),
                             ],
                           ),
-                          child: Icon(Icons.add, color: Colors.white, size: 24),
+                          child: const Icon(Icons.add, color: Colors.white, size: 24),
                         ),
                       ),
                     ),
@@ -643,13 +655,13 @@ class _MyWidgetState extends State<MyWidget> {
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(20),
                         child: BackdropFilter(
-                          filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                          filter: ui.ImageFilter.blur(sigmaX: 15, sigmaY: 15),
                           child: Container(
                             padding: const EdgeInsets.all(16),
                             decoration: BoxDecoration(
-                              color: Colors.black.withOpacity(0.3),
+                              color: Colors.white.withOpacity(0.1),
                               borderRadius: BorderRadius.circular(20),
-                              border: Border.all(color: Colors.white.withOpacity(0.2), width: 1),
+                              border: Border.all(color: Colors.white.withOpacity(0.25), width: 1),
                             ),
                             child: Row(
                               children: [
@@ -694,7 +706,7 @@ class _MyWidgetState extends State<MyWidget> {
                                 const SizedBox(width: 12),
                                 Container(
                                   decoration: BoxDecoration(
-                                    color: Colors.white.withOpacity(0.1),
+                                    color: Colors.white.withOpacity(0.15),
                                     shape: BoxShape.circle,
                                   ),
                                   child: IconButton(
@@ -723,29 +735,26 @@ class _MyWidgetState extends State<MyWidget> {
             maxChildSize: 0.6,
             builder: (context, scrollController) {
               return ClipRRect(
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
                 child: BackdropFilter(
-                  filter: ui.ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+                  filter: ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
                   child: Container(
                     decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.4),
-                      borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-                      border: Border(top: BorderSide(color: Colors.white.withOpacity(0.15), width: 1)),
+                      color: Colors.white.withOpacity(0.1),
+                      borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                      border: Border(top: BorderSide(color: Colors.white.withOpacity(0.25), width: 1)),
                     ),
                     child: Column(
                       children: [
-                        // Elegant drag handle
                         Container(
                           margin: const EdgeInsets.symmetric(vertical: 12),
-                          width: 32,
+                          width: 36,
                           height: 4,
                           decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.3),
+                            color: Colors.white.withOpacity(0.4),
                             borderRadius: BorderRadius.circular(2),
                           ),
                         ),
-                        
-                        // History grid
                         Expanded(
                           child: GridView.builder(
                             controller: scrollController,
@@ -762,9 +771,9 @@ class _MyWidgetState extends State<MyWidget> {
                               return Container(
                                 padding: const EdgeInsets.all(10),
                                 decoration: BoxDecoration(
-                                  color: Colors.white.withOpacity(0.05),
+                                  color: Colors.white.withOpacity(0.08),
                                   borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(color: Colors.white.withOpacity(0.1), width: 1),
+                                  border: Border.all(color: Colors.white.withOpacity(0.15), width: 1),
                                 ),
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -825,7 +834,7 @@ class _MyWidgetState extends State<MyWidget> {
     } else {
       return Container(
         color: Colors.grey[800],
-        child: Center(
+        child: const Center(
           child: Text('Camera not ready', style: TextStyle(color: Colors.white)),
         ),
       );
