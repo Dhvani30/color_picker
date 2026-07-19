@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'dart:convert';
 import 'dart:math';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
@@ -9,6 +11,7 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 // --- 1. DATA MODEL FOR SAVED COLORS ---
 class ColorRecord {
@@ -25,31 +28,221 @@ class ColorRecord {
     required this.name,
     required this.timestamp,
   });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'color': color.value,
+      'hex': hex,
+      'rgba': rgba,
+      'name': name,
+      'timestamp': timestamp.toIso8601String(),
+    };
+  }
+
+  factory ColorRecord.fromJson(Map<String, dynamic> json) {
+    return ColorRecord(
+      color: Color(json['color'] as int),
+      hex: json['hex'] as String,
+      rgba: json['rgba'] as String,
+      name: json['name'] as String,
+      timestamp: DateTime.parse(json['timestamp'] as String),
+    );
+  }
 }
 
-// --- 2. MOCK ASIAN PAINTS DATABASE ---
-final List<Map<String, dynamic>> asianPaintsColors = [
-  {'name': 'Mystic Mauve', 'hex': 0xE8D5D5},
-  {'name': 'Tranquil Blue', 'hex': 0xA4C2D4},
-  {'name': 'Saffron Strands', 'hex': 0xF4C430},
-  {'name': 'Royal Red', 'hex': 0xC41E3A},
-  {'name': 'Emerald Isle', 'hex': 0x50C878},
-  {'name': 'Midnight Blue', 'hex': 0x191970},
-  {'name': 'Coral Pink', 'hex': 0xF88379},
-  {'name': 'Lemon Zest', 'hex': 0xFFF44F},
-  {'name': 'Charcoal Grey', 'hex': 0x36454F},
-  
-  {'name': 'Pure White', 'hex': 0xFFFFFF},
-  {'name': 'Jet Black', 'hex': 0x0A0A0A},
-  {'name': 'Ocean Depth', 'hex': 0x006994},
-  {'name': 'Forest Canopy', 'hex': 0x228B22},
-  {'name': 'Desert Sand', 'hex': 0xEDC9AF},
-  {'name': 'Plum Velvet', 'hex': 0x7D0552},
-  {'name': 'Golden Harvest', 'hex': 0xDAA520},
-  {'name': 'Silver Mist', 'hex': 0xC0C0C0},
-  {'name': 'Ruby Glow', 'hex': 0xE0115F},
-  {'name': 'Sage Green', 'hex': 0x9DC183},
-  {'name': 'Ivory Cream', 'hex': 0xFFFFF0},
+// --- 2. COMPREHENSIVE ASIAN PAINTS DATABASE ---
+final List<Map<String, dynamic>> asianPaintsDatabase = [
+  // --- FROM MELANGE ---
+  {'name': 'AP 9101 Purple Verve', 'r': 104, 'g': 58, 'b': 85},
+  {'name': 'AP 9102 Deep Passion', 'r': 163, 'g': 105, 'b': 147},
+  {'name': 'AP 9103 Fruit Ink', 'r': 193, 'g': 141, 'b': 180},
+  {'name': 'AP 9104 Brush Stroke Bold', 'r': 210, 'g': 162, 'b': 198},
+  {'name': 'AP 9105 Pink Blossom', 'r': 231, 'g': 186, 'b': 214},
+  {'name': 'AP 9106 Pink Hush', 'r': 237, 'g': 202, 'b': 222},
+  {'name': 'AP 9107 Mystical Wave', 'r': 243, 'g': 223, 'b': 232},
+  {'name': 'AP 9108 Iris Ice', 'r': 243, 'g': 231, 'b': 233},
+  {'name': 'AP 0766 Purity-N', 'r': 241, 'g': 235, 'b': 234},
+  {'name': 'AP 7109 Iris Impact', 'r': 104, 'g': 60, 'b': 103},
+  {'name': 'AP 7110 Happy Hyacinth', 'r': 178, 'g': 116, 'b': 177},
+  {'name': 'AP 7111 Japanese Lilac', 'r': 195, 'g': 144, 'b': 197},
+  {'name': 'AP 7112 Wisteria', 'r': 208, 'g': 165, 'b': 209},
+  {'name': 'AP 7113 Tickled Pink', 'r': 230, 'g': 190, 'b': 224},
+  {'name': 'AP 7114 Study In Scarlet', 'r': 237, 'g': 206, 'b': 230},
+  {'name': 'AP 7115 Purple Dye', 'r': 241, 'g': 223, 'b': 233},
+  {'name': 'AP 9109 Purple Expresso', 'r': 90, 'g': 64, 'b': 87},
+  {'name': 'AP 9110 Velvet Plum', 'r': 134, 'g': 103, 'b': 134},
+  {'name': 'AP 9111 Fresh Orchid', 'r': 145, 'g': 113, 'b': 144},
+  {'name': 'AP 9112 Violet Light', 'r': 173, 'g': 145, 'b': 174},
+  {'name': 'AP 9113 Mild Mist', 'r': 196, 'g': 173, 'b': 196},
+  {'name': 'AP 9114 Pink Mirage', 'r': 215, 'g': 186, 'b': 208},
+  {'name': 'AP 9115 Baby Pink', 'r': 226, 'g': 204, 'b': 219},
+  {'name': 'AP 9116 Airy Merry', 'r': 237, 'g': 226, 'b': 231},
+  {'name': 'AP 9117 Pure Impact', 'r': 94, 'g': 54, 'b': 94},
+  {'name': 'AP 9118 Voila', 'r': 153, 'g': 108, 'b': 160},
+  {'name': 'AP 9119 Shady Purple', 'r': 163, 'g': 121, 'b': 169},
+  {'name': 'AP 9120 Pink Reserve', 'r': 181, 'g': 142, 'b': 188},
+  {'name': 'AP 9121 Dancing Pink', 'r': 203, 'g': 167, 'b': 206},
+  {'name': 'AP 9122 Pink Dress', 'r': 222, 'g': 188, 'b': 219},
+  {'name': 'AP 9123 Lavender Breeze', 'r': 232, 'g': 206, 'b': 228},
+  {'name': 'AP 9124 Purple Blush', 'r': 238, 'g': 218, 'b': 230},
+  {'name': 'AP 9125 Poppy Seed', 'r': 104, 'g': 60, 'b': 117},
+  {'name': 'AP 9126 Splendour', 'r': 150, 'g': 108, 'b': 172},
+  {'name': 'AP 9127 Rich Float', 'r': 179, 'g': 143, 'b': 197},
+  {'name': 'AP 9128 Myriad Mist', 'r': 203, 'g': 171, 'b': 213},
+  {'name': 'AP 9129 Fairy Lights', 'r': 221, 'g': 191, 'b': 225},
+  {'name': 'AP 9130 Pristine Pink', 'r': 229, 'g': 206, 'b': 229},
+  {'name': 'AP 9131 Puff Pond', 'r': 236, 'g': 219, 'b': 232},
+  {'name': 'AP 9132 Faint Glow', 'r': 242, 'g': 232, 'b': 233},
+  {'name': 'AP 7141 Escapade', 'r': 72, 'g': 61, 'b': 76},
+  {'name': 'AP 7142 Vibrant Mauve', 'r': 116, 'g': 102, 'b': 125},
+  {'name': 'AP 7143 Purple Illusion', 'r': 136, 'g': 122, 'b': 144},
+  {'name': 'AP 7144 Italian Iris', 'r': 174, 'g': 162, 'b': 183},
+  {'name': 'AP 7145 Wisteria Wish', 'r': 198, 'g': 181, 'b': 199},
+  {'name': 'AP 7146 Mauve Hint', 'r': 210, 'g': 196, 'b': 211},
+  {'name': 'AP 7147 Lavender Laugh', 'r': 224, 'g': 214, 'b': 222},
+  {'name': 'AP 7148 Lilac Frost', 'r': 237, 'g': 232, 'b': 232},
+  {'name': 'AP 7008 Caprice', 'r': 209, 'g': 190, 'b': 218},
+  {'name': 'AP 7149 Royal Mauve', 'r': 87, 'g': 63, 'b': 99},
+  {'name': 'AP 7150 Regal Jewel', 'r': 138, 'g': 115, 'b': 160},
+  {'name': 'AP 7151 Heirloom', 'r': 164, 'g': 144, 'b': 185},
+  {'name': 'AP 7152 Mount Olympus', 'r': 191, 'g': 173, 'b': 206},
+  {'name': 'AP 7154 Spring Bouquet', 'r': 226, 'g': 213, 'b': 228},
+  {'name': 'AP 7155 Pale Chiffon', 'r': 233, 'g': 224, 'b': 231},
+  {'name': 'AP 7156 Lavender Lace', 'r': 237, 'g': 230, 'b': 232},
+  {'name': 'AP 7157 Egg Plant Delite', 'r': 86, 'g': 61, 'b': 122},
+  {'name': 'AP 7158 Royal Robes', 'r': 133, 'g': 110, 'b': 174},
+  {'name': 'AP 7159 Velvet Night', 'r': 165, 'g': 148, 'b': 201},
+  {'name': 'AP 7160 Dash Of Purple', 'r': 183, 'g': 166, 'b': 212},
+  {'name': 'AP 7161 Potpourri', 'r': 205, 'g': 188, 'b': 225},
+  {'name': 'AP 7162 Quartz Illusion', 'r': 219, 'g': 205, 'b': 231},
+  {'name': 'AP 7163 Lavender Secret', 'r': 227, 'g': 218, 'b': 233},
+  {'name': 'AP 7164 Delicate Violet', 'r': 234, 'g': 228, 'b': 235},
+  {'name': 'AP 7051 Reverie', 'r': 184, 'g': 175, 'b': 206},
+  {'name': 'AP 7165 Dark Triumph', 'r': 74, 'g': 61, 'b': 104},
+  {'name': 'AP 7166 Intense Purple', 'r': 126, 'g': 111, 'b': 167},
+  {'name': 'AP 7167 Tiffany', 'r': 157, 'g': 148, 'b': 195},
+  // --- FROM BRIGHTS ---
+  {'name': 'AP X101 Gold Rush', 'r': 218, 'g': 187, 'b': 40},
+  {'name': 'AP X102 Mustard Field', 'r': 211, 'g': 177, 'b': 30},
+  {'name': 'AP X103 Victorian Gold', 'r': 238, 'g': 196, 'b': 5},
+  {'name': 'AP X104 Sporty Yellow', 'r': 254, 'g': 210, 'b': 34},
+  {'name': 'AP 3176 Mid Buff', 'r': 190, 'g': 141, 'b': 60},
+  {'name': 'AP X105 Lemon Ole', 'r': 255, 'g': 209, 'b': 0},
+  {'name': 'AP X106 Ochre Shadow', 'r': 189, 'g': 146, 'b': 57},
+  {'name': 'AP X107 Passion Flower', 'r': 217, 'g': 158, 'b': 34},
+  {'name': 'AP X109 Mango Mood', 'r': 255, 'g': 183, 'b': 0},
+  {'name': 'AP X110 Orange Vision', 'r': 255, 'g': 165, 'b': 35},
+  {'name': 'AP X111 Glorious Sunset', 'r': 247, 'g': 143, 'b': 39},
+  {'name': 'AP X112 Glowing Rust', 'r': 231, 'g': 118, 'b': 46},
+  {'name': 'AP X113 Orange Tango', 'r': 228, 'g': 97, 'b': 47},
+  {'name': 'AP X114 Camp Fire', 'r': 248, 'g': 112, 'b': 44},
+  {'name': 'AP X115 Sahara Sunset', 'r': 232, 'g': 79, 'b': 45},
+  {'name': 'AP X116 Cider Red', 'r': 171, 'g': 70, 'b': 46},
+  {'name': 'AP 0506 Deep Orange', 'r': 221, 'g': 63, 'b': 43},
+  {'name': 'AP X117 Rodeo', 'r': 199, 'g': 72, 'b': 60},
+  {'name': 'AP X118 Red Red', 'r': 160, 'g': 57, 'b': 48},
+  {'name': 'AP X120 Code Red', 'r': 199, 'g': 58, 'b': 52},
+  {'name': 'AP 0520 Signal Red', 'r': 189, 'g': 43, 'b': 47},
+  {'name': 'AP X122 Rich Rouge', 'r': 192, 'g': 59, 'b': 66},
+  {'name': 'AP X123 Crimson Depth', 'r': 149, 'g': 44, 'b': 58},
+  {'name': 'AP X124 Red Alert', 'r': 171, 'g': 41, 'b': 67},
+  {'name': 'AP X125 Moulin Rouge', 'r': 167, 'g': 55, 'b': 79},
+  {'name': 'AP X126 Cherry Brandy', 'r': 173, 'g': 59, 'b': 82},
+  {'name': 'AP X127 Raisin Delight', 'r': 98, 'g': 62, 'b': 61},
+  {'name': 'AP X128 Dark Cherry', 'r': 107, 'g': 54, 'b': 60},
+  {'name': 'AP X129 Burgundy Plus', 'r': 125, 'g': 55, 'b': 64},
+  {'name': 'AP X130 Raspberry Crush', 'r': 125, 'g': 67, 'b': 75},
+  {'name': 'AP X131 Violet Delight', 'r': 144, 'g': 54, 'b': 78},
+  {'name': 'AP X132 Deep Pink', 'r': 172, 'g': 48, 'b': 95},
+  {'name': 'AP X133 Regal Purple', 'r': 141, 'g': 48, 'b': 83},
+  {'name': 'AP X134 Burnt Violet', 'r': 89, 'g': 58, 'b': 69},
+  {'name': 'AP X135 Cherry Bon Bon', 'r': 104, 'g': 50, 'b': 72},
+  {'name': 'AP X136 Purple Prose', 'r': 116, 'g': 53, 'b': 83},
+  {'name': 'AP X137 Very Fuschia', 'r': 140, 'g': 51, 'b': 98},
+  {'name': 'AP X138 Grape Riot', 'r': 147, 'g': 66, 'b': 122},
+  {'name': 'AP X139 Violet Saga', 'r': 112, 'g': 57, 'b': 92},
+  {'name': 'AP X140 Violet Paradise', 'r': 103, 'g': 58, 'b': 100},
+  {'name': 'AP X141 Midnight Interlude', 'r': 88, 'g': 59, 'b': 99},
+  {'name': 'AP X142 Nautical Mile', 'r': 55, 'g': 70, 'b': 119},
+  {'name': 'AP X143 Royal Wave', 'r': 56, 'g': 64, 'b': 93},
+  {'name': 'AP X144 Colonial Blue', 'r': 46, 'g': 68, 'b': 104},
+  {'name': 'AP X145 Inky Sea', 'r': 39, 'g': 73, 'b': 111},
+  {'name': 'AP X146 Ocean Force', 'r': 0, 'g': 83, 'b': 135},
+  {'name': 'AP X147 Mineral Blue', 'r': 0, 'g': 107, 'b': 145},
+  {'name': 'AP X148 Pigeon Crest', 'r': 30, 'g': 80, 'b': 106},
+  {'name': 'AP X149 Polished Blue', 'r': 0, 'g': 106, 'b': 126},
+  {'name': 'AP X150 Teal Dream', 'r': 36, 'g': 73, 'b': 83},
+  {'name': 'AP X151 Turquoise Ocean', 'r': 36, 'g': 88, 'b': 96},
+  {'name': 'AP X152 Night At Sea', 'r': 35, 'g': 81, 'b': 87},
+  {'name': 'AP 0757 Pine-N', 'r': 54, 'g': 100, 'b': 79},
+  {'name': 'AP X153 Amazon Moss', 'r': 44, 'g': 91, 'b': 77},
+  {'name': 'AP X155 Emerald Lights', 'r': 15, 'g': 104, 'b': 70},
+  {'name': 'AP X156 Hill And Vale', 'r': 18, 'g': 110, 'b': 70},
+  {'name': 'AP X157 Green Ebony', 'r': 70, 'g': 102, 'b': 72},
+  {'name': 'AP X158 Forest Glade', 'r': 83, 'g': 134, 'b': 67},
+  {'name': 'AP X159 Loud Lime', 'r': 99, 'g': 176, 'b': 36},
+  {'name': 'AP X160 Chrome Green', 'r': 107, 'g': 139, 'b': 69},
+  // --- FROM WHITES ---
+  {'name': 'AP L101 Swan Wing', 'r': 245, 'g': 241, 'b': 229},
+  {'name': 'AP L102 Milky Way', 'r': 243, 'g': 239, 'b': 228},
+  {'name': 'AP L103 Pearl Star', 'r': 243, 'g': 239, 'b': 228},
+  {'name': 'AP L104 Cotton Wool', 'r': 242, 'g': 240, 'b': 231},
+  {'name': 'AP 0765 Morning Glory', 'r': 240, 'g': 238, 'b': 230},
+  {'name': 'AP L105 Crystal Peak', 'r': 243, 'g': 240, 'b': 231},
+  {'name': 'AP L107 Virgin Lace', 'r': 238, 'g': 233, 'b': 229},
+  {'name': 'AP L108 Cream Pudding', 'r': 234, 'g': 236, 'b': 230},
+  {'name': 'AP 0763 Iceland', 'r': 235, 'g': 238, 'b': 232},
+  {'name': 'AP L109 Icy Peak', 'r': 231, 'g': 231, 'b': 223},
+  {'name': 'AP L111 Sheer Ice', 'r': 228, 'g': 235, 'b': 230},
+  {'name': 'AP L112 White Echo', 'r': 235, 'g': 241, 'b': 233},
+  {'name': 'AP L113 Seagull Point', 'r': 231, 'g': 241, 'b': 232},
+  {'name': 'AP L114 Aqua Hint', 'r': 222, 'g': 238, 'b': 235},
+  {'name': 'AP L115 White Bisque', 'r': 224, 'g': 237, 'b': 229},
+  {'name': 'AP L116 Menthol', 'r': 231, 'g': 241, 'b': 230},
+  {'name': 'AP L117 Mint Essence', 'r': 231, 'g': 240, 'b': 230},
+  {'name': 'AP L118 Water Spray', 'r': 237, 'g': 242, 'b': 232},
+  {'name': 'AP L119 White Satin', 'r': 237, 'g': 241, 'b': 231},
+  {'name': 'AP L120 Mint Lustre', 'r': 239, 'g': 241, 'b': 228},
+  {'name': 'AP L121 Moonlight', 'r': 245, 'g': 242, 'b': 226},
+  {'name': 'AP L122 Skimmed Cream', 'r': 245, 'g': 242, 'b': 231},
+  {'name': 'AP L123 Angel Cloud', 'r': 245, 'g': 241, 'b': 229},
+  {'name': 'AP L124 Pure Ivory', 'r': 245, 'g': 241, 'b': 225},
+  {'name': 'AP 0307 Cream', 'r': 240, 'g': 230, 'b': 203},
+  {'name': 'AP L125 Silver Comet', 'r': 248, 'g': 243, 'b': 227},
+  {'name': 'AP L126 Sugared Nut', 'r': 248, 'g': 242, 'b': 225},
+  {'name': 'AP L127 Sesame Seed', 'r': 239, 'g': 231, 'b': 210},
+  {'name': 'AP 3203 Puppy Love', 'r': 238, 'g': 226, 'b': 202},
+  {'name': 'AP L129 Cold Coffee', 'r': 231, 'g': 217, 'b': 192},
+  {'name': 'AP L131 Lovely Lace', 'r': 238, 'g': 228, 'b': 205},
+  {'name': 'AP L132 Natural Linen', 'r': 240, 'g': 233, 'b': 215},
+  {'name': 'AP L133 Arabian Sand', 'r': 243, 'g': 236, 'b': 216},
+  {'name': 'AP L134 Double Cream', 'r': 242, 'g': 238, 'b': 223},
+  {'name': 'AP L135 Sahara Dream', 'r': 233, 'g': 224, 'b': 206},
+  {'name': 'AP L136 Pebble White', 'r': 241, 'g': 234, 'b': 219},
+  {'name': 'AP 0952 Soft Glow', 'r': 234, 'g': 226, 'b': 213},
+  {'name': 'AP L138 Snow Blush', 'r': 245, 'g': 236, 'b': 222},
+  {'name': 'AP L139 Blush', 'r': 250, 'g': 238, 'b': 228},
+  {'name': 'AP L140 Crushed Ice', 'r': 244, 'g': 237, 'b': 225},
+  {'name': 'AP L141 South Pole', 'r': 247, 'g': 240, 'b': 229},
+  {'name': 'AP L142 Mica Matte', 'r': 243, 'g': 236, 'b': 229},
+  {'name': 'AP L143 Rain Drop', 'r': 247, 'g': 242, 'b': 233},
+  {'name': 'AP L144 Love Song', 'r': 245, 'g': 241, 'b': 232},
+  {'name': 'AP L145 White Cameo', 'r': 247, 'g': 241, 'b': 234},
+  {'name': 'AP L146 Sonnet', 'r': 247, 'g': 243, 'b': 236},
+  {'name': 'AP L147 Harmony', 'r': 241, 'g': 235, 'b': 224},
+  {'name': 'AP L148 Blossom Tint', 'r': 245, 'g': 240, 'b': 229},
+  {'name': 'AP L149 Eggshell', 'r': 240, 'g': 237, 'b': 224},
+  {'name': 'AP L150 Pressed Linen', 'r': 247, 'g': 243, 'b': 232},
+  {'name': 'AP L151 Raw Jute', 'r': 244, 'g': 239, 'b': 226},
+  {'name': 'AP L152 Cream Pie', 'r': 247, 'g': 246, 'b': 237},
+  {'name': 'AP L153 Pristine Linen', 'r': 241, 'g': 240, 'b': 227},
+  {'name': 'AP L154 Pipe Dream', 'r': 246, 'g': 244, 'b': 234},
+  {'name': 'AP L155 Pale Sisal', 'r': 246, 'g': 245, 'b': 235},
+  {'name': 'AP L156 Almost Ivory', 'r': 243, 'g': 239, 'b': 227},
+  {'name': 'AP L157 White Canvas', 'r': 240, 'g': 235, 'b': 224},
+  {'name': 'AP L158 Silence', 'r': 240, 'g': 235, 'b': 225},
+  {'name': 'AP L159 Dreamy Night', 'r': 233, 'g': 229, 'b': 216},
+  {'name': 'AP L160 Soft Silk', 'r': 239, 'g': 233, 'b': 221},
 ];
 
 class MyWidget extends StatefulWidget {
@@ -60,18 +253,15 @@ class MyWidget extends StatefulWidget {
 }
 
 class _MyWidgetState extends State<MyWidget> {
-  // --- CAMERA & STATE VARIABLES ---
   CameraController? _cameraController;
   bool _isCameraPermissionGranted = false;
   bool _permissionDenied = false;
   bool _isFrameFrozen = false;
   Uint8List? _frozenFrameBytes;
 
-  // --- GALLERY VARIABLES ---
   Uint8List? _galleryImageBytes;
   final ImagePicker _picker = ImagePicker();
 
-  // --- COLOR PICKING VARIABLES ---
   final GlobalKey _viewportKey = GlobalKey();
   Offset _cursorPosition = Offset.zero;
   Color _pickedColor = Colors.white;
@@ -79,28 +269,62 @@ class _MyWidgetState extends State<MyWidget> {
   String _rgbCode = 'RGB(255, 255, 255)';
   String _colorName = 'Unknown';
   
-  // --- HISTORY ---
   List<ColorRecord> _colorHistory = [];
+  String _lastHapticColorName = '';
+  Timer? _samplingTimer;
 
-  // --- HAPTIC THROTTLING ---
-  DateTime _lastHapticTime = DateTime.now();
-  Color? _lastHapticColor;
-
-  // --- VIEWPORT MODE ---
+  static const String _historyKey = 'color_history';
+  SharedPreferences? _prefs;
   int _currentMode = 0; 
 
   @override
   void initState() {
     super.initState();
+    _loadHistoryFromStorage();
     _requestCameraPermission();
+    _startContinuousSampling();
   }
 
-  // --- PERMISSIONS ---
+  @override
+  void dispose() {
+    _samplingTimer?.cancel();
+    _cameraController?.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadHistoryFromStorage() async {
+    _prefs = await SharedPreferences.getInstance();
+    final historyJson = _prefs?.getString(_historyKey);
+    if (historyJson != null) {
+      try {
+        final List<dynamic> decoded = jsonDecode(historyJson);
+        setState(() {
+          _colorHistory = decoded.map((json) => ColorRecord.fromJson(json)).toList();
+        });
+      } catch (e) {
+        print('Error loading history: $e');
+      }
+    }
+  }
+
+  Future<void> _saveHistoryToStorage() async {
+    if (_prefs == null) {
+      _prefs = await SharedPreferences.getInstance();
+    }
+    final historyJson = jsonEncode(_colorHistory.map((record) => record.toJson()).toList());
+    await _prefs?.setString(_historyKey, historyJson);
+  }
+
+  void _startContinuousSampling() {
+    _samplingTimer = Timer.periodic(const Duration(milliseconds: 250), (timer) {
+      if (_currentMode == 0 || _currentMode == 1) {
+        _readPixelAt(_cursorPosition);
+      }
+    });
+  }
+
   Future<void> _requestCameraPermission() async {
-    print('🔐 Requesting camera permission...');
     var status = await Permission.camera.request();
-    print('📋 Permission status: ${status.isGranted}');
-    
     if (status.isGranted) {
       setState(() => _isCameraPermissionGranted = true);
       _initializeCamera();
@@ -110,28 +334,18 @@ class _MyWidgetState extends State<MyWidget> {
   }
 
   Future<void> _initializeCamera() async {
-    print('🎥 Initializing camera...');
     try {
       final cameras = await availableCameras();
-      print('📷 Found ${cameras.length} cameras');
-      
       if (cameras.isNotEmpty) {
         _cameraController = CameraController(cameras[0], ResolutionPreset.high);
         await _cameraController!.initialize();
-        print('✅ Camera initialized successfully!');
-        
-        if (mounted) {
-          setState(() {});
-        }
-      } else {
-        print('❌ No cameras available!');
+        if (mounted) setState(() {});
       }
     } catch (e) {
       print('❌ Camera initialization error: $e');
     }
   }
 
-  // --- FREEZE / RESUME LOGIC ---
   Future<void> _freezeFrame() async {
     HapticFeedback.mediumImpact();
     if (_cameraController != null && _cameraController!.value.isInitialized) {
@@ -154,7 +368,6 @@ class _MyWidgetState extends State<MyWidget> {
     });
   }
 
-  // --- GALLERY LOGIC ---
   Future<void> _pickFromGallery() async {
     HapticFeedback.selectionClick();
     final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
@@ -167,7 +380,6 @@ class _MyWidgetState extends State<MyWidget> {
     }
   }
 
-  // --- THE CORE: READING THE PIXEL ---
   Future<void> _readPixelAt(Offset position) async {
     final renderObject = _viewportKey.currentContext?.findRenderObject();
     if (renderObject is! RenderRepaintBoundary) return;
@@ -192,40 +404,29 @@ class _MyWidgetState extends State<MyWidget> {
 
     final Color newColor = Color.fromRGBO(r, g, b, 1);
     final String hex = '#${r.toRadixString(16).padLeft(2, '0')}${g.toRadixString(16).padLeft(2, '0')}${b.toRadixString(16).padLeft(2, '0')}'.toUpperCase();
+    final String newName = _findClosestAsianPaintsName(r, g, b);
     
-    // Throttled haptic feedback for cursor dragging
-    final now = DateTime.now();
-    final timeSinceLastHaptic = now.difference(_lastHapticTime).inMilliseconds;
-    final colorChanged = _lastHapticColor == null || 
-        (_lastHapticColor!.red != newColor.red || 
-         _lastHapticColor!.green != newColor.green || 
-         _lastHapticColor!.blue != newColor.blue);
-    
-    if (colorChanged && timeSinceLastHaptic > 80) {
+    if (newName != _lastHapticColorName) {
       HapticFeedback.lightImpact();
-      _lastHapticTime = now;
-      _lastHapticColor = newColor;
+      _lastHapticColorName = newName;
     }
     
     setState(() {
       _pickedColor = newColor;
       _hexCode = hex;
       _rgbCode = 'RGB($r, $g, $b)';
-      _colorName = _findClosestAsianPaintsName(r, g, b);
+      _colorName = newName;
     });
   }
 
-  // --- ASIAN PAINTS MATCHING ALGORITHM ---
   String _findClosestAsianPaintsName(int r, int g, int b) {
     double minDistance = double.infinity;
     String closestName = 'Unknown';
 
-    for (var paint in asianPaintsColors) {
-      int hex = paint['hex'];
-      int pR = (hex >> 16) & 0xFF;
-      int pG = (hex >> 8) & 0xFF;
-      int pB = hex & 0xFF;
-
+    for (var paint in asianPaintsDatabase) {
+      int pR = paint['r'];
+      int pG = paint['g'];
+      int pB = paint['b'];
       double distance = sqrt(pow(r - pR, 2) + pow(g - pG, 2) + pow(b - pB, 2));
 
       if (distance < minDistance) {
@@ -236,7 +437,6 @@ class _MyWidgetState extends State<MyWidget> {
     return closestName;
   }
 
-  // --- SAVE TO HISTORY ---
   void _saveToHistory() {
     HapticFeedback.mediumImpact();
     setState(() {
@@ -248,15 +448,46 @@ class _MyWidgetState extends State<MyWidget> {
         timestamp: DateTime.now(),
       ));
     });
+    _saveHistoryToStorage();
   }
 
-  // --- UI BUILD ---
+  // --- NEW CLEAN BUTTON BUILDER ---
+  Widget _buildControlButton({
+    required String text,
+    required bool isActive,
+    required VoidCallback onPressed,
+  }) {
+    return ElevatedButton(
+      onPressed: onPressed,
+      style: ElevatedButton.styleFrom(
+        backgroundColor: isActive 
+            ? Colors.white.withOpacity(0.95) 
+            : Colors.white.withOpacity(0.1),
+        foregroundColor: isActive ? Colors.black : Colors.white,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(
+            color: Colors.white.withOpacity(isActive ? 0.3 : 0.15),
+            width: 1,
+          ),
+        ),
+        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontWeight: FontWeight.w600,
+          fontSize: 14,
+          letterSpacing: 0.3,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    print('🔨 Build called - Permission: $_isCameraPermissionGranted, Controller: ${_cameraController != null}, Initialized: ${_cameraController?.value.isInitialized}');
-    
     if (_permissionDenied) {
-      print('❌ Permission denied');
       return Scaffold(
         backgroundColor: Colors.black,
         body: Center(
@@ -277,7 +508,6 @@ class _MyWidgetState extends State<MyWidget> {
     }
 
     if (!_isCameraPermissionGranted || _cameraController == null || !_cameraController!.value.isInitialized) {
-      print('⏳ Showing loading screen');
       return Scaffold(
         backgroundColor: Colors.black,
         body: Center(
@@ -293,8 +523,6 @@ class _MyWidgetState extends State<MyWidget> {
       );
     }
 
-    print('✅ Showing main UI');
-
     if (_cursorPosition == Offset.zero) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         final size = MediaQuery.of(context).size;
@@ -306,125 +534,281 @@ class _MyWidgetState extends State<MyWidget> {
 
     return Scaffold(
       backgroundColor: Colors.black,
-      body: Column(
+      body: Stack(
         children: [
-          // TOP MODE SWITCHER
-          Container(
-            color: Colors.black87,
-            padding: EdgeInsets.symmetric(vertical: 10),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                _modeButton('Live', 0),
-                _modeButton('Gallery', 2),
-                if (_isFrameFrozen) _modeButton('Resume', -1), 
-              ],
-            ),
-          ),
-
-          // MAIN VIEWPORT (The Stack)
-          Expanded(
-            child: Stack(
-              children: [
-                Positioned.fill(
-                  child: RepaintBoundary(
-                    key: _viewportKey,
-                    child: _buildViewport(),
-                  ),
-                ),
-
-                Positioned(
-                  left: _cursorPosition.dx - 20, 
-                  top: _cursorPosition.dy - 20,
-                  child: GestureDetector(
-                    onPanUpdate: (details) {
-                      setState(() {
-                        _cursorPosition += details.delta;
-                      });
-                      _readPixelAt(_cursorPosition);
-                    },
-                    child: Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 2),
-                        color: Colors.black.withOpacity(0.3),
+          Column(
+            children: [
+              // --- GLASSMORPHISM TOP CONTROL BAR ---
+              SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: BackdropFilter(
+                      filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.2),
+                          border: Border.all(color: Colors.white.withOpacity(0.15), width: 1),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: _buildControlButton(
+                                text: 'Live',
+                                isActive: _currentMode == 0,
+                                onPressed: () {
+                                  HapticFeedback.selectionClick();
+                                  setState(() => _currentMode = 0);
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: _buildControlButton(
+                                text: 'Gallery',
+                                isActive: _currentMode == 2,
+                                onPressed: () {
+                                  HapticFeedback.selectionClick();
+                                  _pickFromGallery();
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            SizedBox(
+                              width: 80,
+                              height: 44,
+                              child: _isFrameFrozen
+                                  ? _buildControlButton(
+                                      text: 'Resume',
+                                      isActive: true,
+                                      onPressed: () {
+                                        HapticFeedback.selectionClick();
+                                        _resumeCamera();
+                                      },
+                                    )
+                                  : const SizedBox.shrink(),
+                            ),
+                          ],
+                        ),
                       ),
-                      child: Icon(Icons.add, color: Colors.white, size: 24),
                     ),
                   ),
                 ),
-              ],
-            ),
+              ),
+
+              Expanded(
+                child: Stack(
+                  children: [
+                    Positioned.fill(
+                      child: RepaintBoundary(
+                        key: _viewportKey,
+                        child: _buildViewport(),
+                      ),
+                    ),
+                    Positioned(
+                      left: _cursorPosition.dx - 20, 
+                      top: _cursorPosition.dy - 20,
+                      child: GestureDetector(
+                        onPanUpdate: (details) {
+                          setState(() {
+                            _cursorPosition += details.delta;
+                          });
+                          _readPixelAt(_cursorPosition);
+                        },
+                        child: Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 1.5),
+                            color: Colors.black.withOpacity(0.1),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.3),
+                                blurRadius: 8,
+                                spreadRadius: 2,
+                              ),
+                            ],
+                          ),
+                          child: Icon(Icons.add, color: Colors.white, size: 24),
+                        ),
+                      ),
+                    ),
+                    // --- FLOATING GLASS COLOR INFO OVERLAY ---
+                    Positioned(
+                      top: 16,
+                      right: 16,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(20),
+                        child: BackdropFilter(
+                          filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                          child: Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withOpacity(0.3),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(color: Colors.white.withOpacity(0.2), width: 1),
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 44,
+                                  height: 44,
+                                  decoration: BoxDecoration(
+                                    color: _pickedColor, 
+                                    borderRadius: BorderRadius.circular(12), 
+                                    border: Border.all(color: Colors.white.withOpacity(0.3), width: 1),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      _colorName,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                    Text(
+                                      _hexCode,
+                                      style: const TextStyle(
+                                        color: Colors.white70,
+                                        fontSize: 11,
+                                        letterSpacing: 0.5,
+                                      ),
+                                    ),
+                                    Text(
+                                      _rgbCode,
+                                      style: const TextStyle(
+                                        color: Colors.white54,
+                                        fontSize: 9,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(width: 12),
+                                Container(
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.1),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: IconButton(
+                                    icon: const Icon(Icons.save, color: Colors.white, size: 18),
+                                    onPressed: _saveToHistory,
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
 
-          // BOTTOM INFO & HISTORY PANEL
-          Container(
-            height: 220,
-            color: Colors.grey[900],
-            child: Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.all(12.0),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 60, height: 60,
-                        decoration: BoxDecoration(color: _pickedColor, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.white)),
-                      ),
-                      SizedBox(width: 15),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(_colorName, style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
-                            Text(_hexCode, style: TextStyle(color: Colors.white70)),
-                            Text(_rgbCode, style: TextStyle(color: Colors.white54, fontSize: 12)),
-                          ],
+          // --- FROSTED GLASS HISTORY SHEET ---
+          DraggableScrollableSheet(
+            initialChildSize: 0.12,
+            minChildSize: 0.12,
+            maxChildSize: 0.6,
+            builder: (context, scrollController) {
+              return ClipRRect(
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                child: BackdropFilter(
+                  filter: ui.ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.4),
+                      borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                      border: Border(top: BorderSide(color: Colors.white.withOpacity(0.15), width: 1)),
+                    ),
+                    child: Column(
+                      children: [
+                        // Elegant drag handle
+                        Container(
+                          margin: const EdgeInsets.symmetric(vertical: 12),
+                          width: 32,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.3),
+                            borderRadius: BorderRadius.circular(2),
+                          ),
                         ),
-                      ),
-                      IconButton(
-                        icon: Icon(Icons.save, color: Colors.white),
-                        onPressed: _saveToHistory,
-                      ),
-                      if (_currentMode == 0)
-                        IconButton(
-                          icon: Icon(Icons.pause_circle_filled, color: Colors.white),
-                          onPressed: _freezeFrame,
+                        
+                        // History grid
+                        Expanded(
+                          child: GridView.builder(
+                            controller: scrollController,
+                            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 3,
+                              childAspectRatio: 1.0,
+                              crossAxisSpacing: 12,
+                              mainAxisSpacing: 12,
+                            ),
+                            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                            itemCount: _colorHistory.length,
+                            itemBuilder: (context, index) {
+                              final record = _colorHistory[index];
+                              return Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.05),
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(color: Colors.white.withOpacity(0.1), width: 1),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Expanded(
+                                      child: Container(
+                                        width: double.infinity,
+                                        decoration: BoxDecoration(
+                                          color: record.color,
+                                          borderRadius: BorderRadius.circular(10),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      record.name,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    Text(
+                                      record.hex,
+                                      style: const TextStyle(
+                                        color: Colors.white70,
+                                        fontSize: 9,
+                                        letterSpacing: 0.3,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
                         ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
-                Divider(color: Colors.white24),
-                Expanded(
-                  child: ListView.builder(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: _colorHistory.length,
-                    itemBuilder: (context, index) {
-                      final record = _colorHistory[index];
-                      final time = DateFormat('HH:mm dd/MM').format(record.timestamp);
-                      return Container(
-                        width: 120,
-                        margin: EdgeInsets.symmetric(horizontal: 8),
-                        padding: EdgeInsets.all(8),
-                        decoration: BoxDecoration(color: Colors.black, borderRadius: BorderRadius.circular(8)),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Container(height: 30, width: double.infinity, decoration: BoxDecoration(color: record.color, borderRadius: BorderRadius.circular(4))),
-                            SizedBox(height: 5),
-                            Text(record.name, style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold), maxLines: 1, overflow: TextOverflow.ellipsis),
-                            Text(record.hex, style: TextStyle(color: Colors.white70, fontSize: 10)),
-                            Text(time, style: TextStyle(color: Colors.white54, fontSize: 9)),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ],
-            ),
+              );
+            },
           ),
         ],
       ),
@@ -446,27 +830,5 @@ class _MyWidgetState extends State<MyWidget> {
         ),
       );
     }
-  }
-
-  Widget _modeButton(String text, int mode) {
-    final bool isActive = (mode == -1 && _isFrameFrozen) || 
-                         (mode != -1 && _currentMode == mode);
-    return ElevatedButton(
-      onPressed: () {
-        HapticFeedback.selectionClick();
-        if (mode == -1) {
-          _resumeCamera();
-        } else if (mode == 2) {
-          _pickFromGallery();
-        } else {
-          setState(() => _currentMode = mode);
-        }
-      },
-      style: ElevatedButton.styleFrom(
-        backgroundColor: isActive ? Colors.white : Colors.grey[800],
-        foregroundColor: isActive ? Colors.black : Colors.white,
-      ),
-      child: Text(text),
-    );
   }
 }
