@@ -1,6 +1,6 @@
 <p align="center">
   <img src="assets/logo.png" alt="ChromaPick Logo" width="90" style="margin-bottom: 10px;" />
-  <h1 align="center" style="font-weight: 800; letter-spacing: -1px;">ChromaPick</h1>
+  <h1 align="center" style="font-weight: 800; letter-spacing: -1px;">ColorPicker</h1>
   <p align="center" style="font-size: 1.2rem; color: #6a737d;">Advanced Camera Color Picker & Asian Paints Matcher</p>
 </p>
 
