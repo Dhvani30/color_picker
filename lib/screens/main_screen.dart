@@ -272,6 +272,8 @@ class _MyWidgetState extends State<MyWidget> {
   List<ColorRecord> _colorHistory = [];
   String _lastHapticColorName = '';
   Timer? _samplingTimer;
+  Timer? _hapticTimer;
+  bool _isDraggingCursor = false;
 
   static const String _historyKey = 'color_history';
   SharedPreferences? _prefs;
@@ -282,12 +284,17 @@ class _MyWidgetState extends State<MyWidget> {
     super.initState();
     _loadHistoryFromStorage();
     _requestCameraPermission();
-    _startContinuousSampling();
+    
+    // Start sampling only after the first frame is painted to prevent assertion errors
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _startContinuousSampling();
+    });
   }
 
   @override
   void dispose() {
     _samplingTimer?.cancel();
+    _hapticTimer?.cancel();
     _cameraController?.dispose();
     super.dispose();
   }
@@ -347,7 +354,7 @@ class _MyWidgetState extends State<MyWidget> {
   }
 
   Future<void> _freezeFrame() async {
-    HapticFeedback.mediumImpact();
+    // Haptic moved to onPressed to prevent double vibration
     if (_cameraController != null && _cameraController!.value.isInitialized) {
       final file = await _cameraController!.takePicture();
       final bytes = await file.readAsBytes();
@@ -360,7 +367,7 @@ class _MyWidgetState extends State<MyWidget> {
   }
 
   void _resumeCamera() {
-    HapticFeedback.mediumImpact();
+    // Haptic moved to onPressed to prevent double vibration
     setState(() {
       _isFrameFrozen = false;
       _frozenFrameBytes = null;
@@ -369,7 +376,7 @@ class _MyWidgetState extends State<MyWidget> {
   }
 
   Future<void> _pickFromGallery() async {
-    HapticFeedback.selectionClick();
+    // Haptic moved to onPressed to prevent double vibration
     final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
     if (image != null) {
       final bytes = await image.readAsBytes();
@@ -385,38 +392,53 @@ class _MyWidgetState extends State<MyWidget> {
     if (renderObject is! RenderRepaintBoundary) return;
     final boundary = renderObject;
 
-    final pixelRatio = MediaQuery.of(context).devicePixelRatio;
-    final ui.Image image = await boundary.toImage(pixelRatio: pixelRatio);
-    final ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
-    if (byteData == null) return;
+    try {
+      final pixelRatio = MediaQuery.of(context).devicePixelRatio;
+      final ui.Image image = await boundary.toImage(pixelRatio: pixelRatio);
+      final ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
+      if (byteData == null) return;
 
-    final Uint8List pixels = byteData.buffer.asUint8List();
-    final RenderBox renderBox = boundary;
-    final Size boxSize = renderBox.size;
+      final Uint8List pixels = byteData.buffer.asUint8List();
+      final RenderBox renderBox = boundary;
+      final Size boxSize = renderBox.size;
 
-    final int x = (position.dx / boxSize.width * image.width).clamp(0, image.width - 1).toInt();
-    final int y = (position.dy / boxSize.height * image.height).clamp(0, image.height - 1).toInt();
+      final int x = (position.dx / boxSize.width * image.width).clamp(0, image.width - 1).toInt();
+      final int y = (position.dy / boxSize.height * image.height).clamp(0, image.height - 1).toInt();
 
-    final int pixelIndex = (y * image.width + x) * 4;
-    final int r = pixels[pixelIndex];
-    final int g = pixels[pixelIndex + 1];
-    final int b = pixels[pixelIndex + 2];
+      final int pixelIndex = (y * image.width + x) * 4;
+      final int r = pixels[pixelIndex];
+      final int g = pixels[pixelIndex + 1];
+      final int b = pixels[pixelIndex + 2];
 
-    final Color newColor = Color.fromRGBO(r, g, b, 1);
-    final String hex = '#${r.toRadixString(16).padLeft(2, '0')}${g.toRadixString(16).padLeft(2, '0')}${b.toRadixString(16).padLeft(2, '0')}'.toUpperCase();
-    final String newName = _findClosestAsianPaintsName(r, g, b);
-    
-    if (newName != _lastHapticColorName) {
-      HapticFeedback.lightImpact();
-      _lastHapticColorName = newName;
+      final Color newColor = Color.fromRGBO(r, g, b, 1);
+      final String hex = '#${r.toRadixString(16).padLeft(2, '0')}${g.toRadixString(16).padLeft(2, '0')}${b.toRadixString(16).padLeft(2, '0')}'.toUpperCase();
+      final String newName = _findClosestAsianPaintsName(r, g, b);
+      
+      if (newName != _lastHapticColorName) {
+        _lastHapticColorName = newName;
+
+        if (_isDraggingCursor) {
+          _hapticTimer?.cancel();
+          _hapticTimer = Timer(
+            const Duration(milliseconds: 150),
+            () {
+              HapticFeedback.selectionClick();
+            },
+          );
+        }
+      }
+      
+      if (mounted) {
+        setState(() {
+          _pickedColor = newColor;
+          _hexCode = hex;
+          _rgbCode = 'RGB($r, $g, $b)';
+          _colorName = newName;
+        });
+      }
+    } catch (e) {
+      return;
     }
-    
-    setState(() {
-      _pickedColor = newColor;
-      _hexCode = hex;
-      _rgbCode = 'RGB($r, $g, $b)';
-      _colorName = newName;
-    });
   }
 
   String _findClosestAsianPaintsName(int r, int g, int b) {
@@ -451,36 +473,44 @@ class _MyWidgetState extends State<MyWidget> {
     _saveHistoryToStorage();
   }
 
-  // --- GLASSMORPHISM BUTTON BUILDER ---
   Widget _buildControlButton({
     required String text,
     required bool isActive,
     required VoidCallback onPressed,
   }) {
-    return ElevatedButton(
-      onPressed: onPressed,
-      style: ElevatedButton.styleFrom(
-        // Pure glass effect: white tint when active, subtle glass when inactive (NO black background)
-        backgroundColor: isActive 
-            ? Colors.white 
-            : Colors.white.withOpacity(0.15),
-        foregroundColor: isActive ? Colors.black : Colors.white,
-        elevation: 0,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
-          side: BorderSide(
-            color: Colors.white.withOpacity(isActive ? 0.0 : 0.25),
-            width: 1,
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: BackdropFilter(
+        filter: ui.ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(16),
+            onTap: onPressed,
+            child: Container(
+              height: 48,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: isActive
+                    ? Colors.white.withOpacity(0.18)
+                    : Colors.white.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.15),
+                  width: 1,
+                ),
+              ),
+              child: Text(
+                text,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: isActive ? FontWeight.w700 : FontWeight.w600,
+                  fontSize: 14,
+                  letterSpacing: 0.3,
+                ),
+              ),
+            ),
           ),
-        ),
-        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
-      ),
-      child: Text(
-        text,
-        style: const TextStyle(
-          fontWeight: FontWeight.w600,
-          fontSize: 14,
-          letterSpacing: 0.3,
         ),
       ),
     );
@@ -534,201 +564,192 @@ class _MyWidgetState extends State<MyWidget> {
     }
 
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: Colors.transparent,
       body: Stack(
         children: [
-          Column(
-            children: [
-              // --- PURE GLASSMORPHISM TOP CONTROL BAR ---
-              SafeArea(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(18),
-                    child: BackdropFilter(
-                      filter: ui.ImageFilter.blur(sigmaX: 15, sigmaY: 15),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                        decoration: BoxDecoration(
-                          // Changed from black.withOpacity to white.withOpacity for a clean, light frosted glass look
-                          color: Colors.white.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(18),
-                          border: Border.all(color: Colors.white.withOpacity(0.25), width: 1),
-                        ),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: _buildControlButton(
-                                text: 'Live',
-                                isActive: _currentMode == 0,
-                                onPressed: () {
-                                  HapticFeedback.selectionClick();
-                                  setState(() => _currentMode = 0);
-                                },
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: _buildControlButton(
-                                text: 'Gallery',
-                                isActive: _currentMode == 2,
-                                onPressed: () {
-                                  HapticFeedback.selectionClick();
-                                  _pickFromGallery();
-                                },
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            // --- FIXED: ALWAYS RENDERED TO PREVENT LAYOUT JUMP ---
-                            Expanded(
-                              child: SizedBox(
-                                height: 44,
-                                child: _isFrameFrozen
-                                    ? _buildControlButton(
-                                        text: 'Resume',
-                                        isActive: true,
-                                        onPressed: () {
-                                          HapticFeedback.selectionClick();
-                                          _resumeCamera();
-                                        },
-                                      )
-                                    : _buildControlButton(
-                                        text: 'Pause',
-                                        isActive: false,
-                                        onPressed: () {
-                                          HapticFeedback.selectionClick();
-                                          _freezeFrame();
-                                        },
-                                      ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-
-              Expanded(
-                child: Stack(
+          // 1. Full Screen Camera/Viewport
+          Positioned.fill(
+            child: RepaintBoundary(
+              key: _viewportKey,
+              child: _buildViewport(),
+            ),
+          ),
+         
+          // 2. Top Control Buttons (Explicit Haptic Feedback Added)
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: Row(
                   children: [
-                    Positioned.fill(
-                      child: RepaintBoundary(
-                        key: _viewportKey,
-                        child: _buildViewport(),
-                      ),
-                    ),
-                    Positioned(
-                      left: _cursorPosition.dx - 20, 
-                      top: _cursorPosition.dy - 20,
-                      child: GestureDetector(
-                        onPanUpdate: (details) {
-                          setState(() {
-                            _cursorPosition += details.delta;
-                          });
-                          _readPixelAt(_cursorPosition);
+                    Expanded(
+                      child: _buildControlButton(
+                        text: 'Live',
+                        isActive: _currentMode == 0,
+                        onPressed: () {
+                          HapticFeedback.mediumImpact();
+                          setState(() => _currentMode = 0);
                         },
-                        child: Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(color: Colors.white, width: 1.5),
-                            color: Colors.black.withOpacity(0.1),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.3),
-                                blurRadius: 8,
-                                spreadRadius: 2,
-                              ),
-                            ],
-                          ),
-                          child: const Icon(Icons.add, color: Colors.white, size: 24),
-                        ),
                       ),
                     ),
-                    // --- FLOATING GLASS COLOR INFO OVERLAY ---
-                    Positioned(
-                      top: 16,
-                      right: 16,
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(20),
-                        child: BackdropFilter(
-                          filter: ui.ImageFilter.blur(sigmaX: 15, sigmaY: 15),
-                          child: Container(
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(color: Colors.white.withOpacity(0.25), width: 1),
-                            ),
-                            child: Row(
-                              children: [
-                                Container(
-                                  width: 44,
-                                  height: 44,
-                                  decoration: BoxDecoration(
-                                    color: _pickedColor, 
-                                    borderRadius: BorderRadius.circular(12), 
-                                    border: Border.all(color: Colors.white.withOpacity(0.3), width: 1),
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      _colorName,
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: 14,
-                                      ),
-                                    ),
-                                    Text(
-                                      _hexCode,
-                                      style: const TextStyle(
-                                        color: Colors.white70,
-                                        fontSize: 11,
-                                        letterSpacing: 0.5,
-                                      ),
-                                    ),
-                                    Text(
-                                      _rgbCode,
-                                      style: const TextStyle(
-                                        color: Colors.white54,
-                                        fontSize: 9,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(width: 12),
-                                Container(
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withOpacity(0.15),
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: IconButton(
-                                    icon: const Icon(Icons.save, color: Colors.white, size: 18),
-                                    onPressed: _saveToHistory,
-                                    padding: EdgeInsets.zero,
-                                    constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _buildControlButton(
+                        text: 'Gallery',
+                        isActive: _currentMode == 2,
+                        onPressed: () {
+                          HapticFeedback.mediumImpact();
+                          _pickFromGallery();
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: SizedBox(
+                        height: 44,
+                        child: _isFrameFrozen
+                            ? _buildControlButton(
+                                text: 'Resume',
+                                isActive: true,
+                                onPressed: () {
+                                  HapticFeedback.mediumImpact();
+                                  _resumeCamera();
+                                },
+                              )
+                            : _buildControlButton(
+                                text: 'Pause',
+                                isActive: false,
+                                onPressed: () {
+                                  HapticFeedback.mediumImpact();
+                                  _freezeFrame();
+                                },
+                              ),
                       ),
                     ),
                   ],
                 ),
               ),
-            ],
+            ),
           ),
 
-          // --- FROSTED GLASS HISTORY SHEET ---
+          // 3. Floating Glass Color Info Overlay
+          Positioned(
+            top: 110, 
+            right: 16,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(20),
+              child: BackdropFilter(
+                filter: ui.ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Colors.white.withOpacity(0.15), width: 1),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: _pickedColor, 
+                          borderRadius: BorderRadius.circular(12), 
+                          border: Border.all(color: Colors.white.withOpacity(0.3), width: 1),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _colorName,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 14,
+                            ),
+                          ),
+                          Text(
+                            _hexCode,
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 11,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                          Text(
+                            _rgbCode,
+                            style: const TextStyle(
+                              color: Colors.white54,
+                              fontSize: 9,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(width: 12),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.15),
+                          shape: BoxShape.circle,
+                        ),
+                        child: IconButton(
+                          icon: const Icon(Icons.save, color: Colors.white, size: 18),
+                          onPressed: _saveToHistory,
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+
+          // 4. Draggable Crosshair (Haptic Feedback Added on Stop)
+          Positioned(
+            left: _cursorPosition.dx - 20, 
+            top: _cursorPosition.dy - 20,
+            child: GestureDetector(
+              onPanStart: (_) {
+                _isDraggingCursor = true;
+              },
+              onPanUpdate: (details) {
+                setState(() {
+                  _cursorPosition += details.delta;
+                });
+                _readPixelAt(_cursorPosition);
+              },
+              onPanEnd: (_) {
+                _isDraggingCursor = false;
+                // HAPTIC: Triggers exactly when the user stops dragging the cursor
+                HapticFeedback.mediumImpact();
+              },
+              child: Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 1.5),
+                  color: Colors.black.withOpacity(0.1),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.3),
+                      blurRadius: 8,
+                      spreadRadius: 2,
+                    ),
+                  ],
+                ),
+                child: const Icon(Icons.add, color: Colors.white, size: 24),
+              ),
+            ),
+          ),
+
+          // 5. Bottom History Sheet
           DraggableScrollableSheet(
             initialChildSize: 0.12,
             minChildSize: 0.12,
@@ -740,7 +761,7 @@ class _MyWidgetState extends State<MyWidget> {
                   filter: ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
                   child: Container(
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.1),
+                      color: Colors.transparent,
                       borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
                       border: Border(top: BorderSide(color: Colors.white.withOpacity(0.25), width: 1)),
                     ),
@@ -768,45 +789,63 @@ class _MyWidgetState extends State<MyWidget> {
                             itemCount: _colorHistory.length,
                             itemBuilder: (context, index) {
                               final record = _colorHistory[index];
-                              return Container(
-                                padding: const EdgeInsets.all(10),
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withOpacity(0.08),
-                                  borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(color: Colors.white.withOpacity(0.15), width: 1),
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Expanded(
-                                      child: Container(
-                                        width: double.infinity,
-                                        decoration: BoxDecoration(
-                                          color: record.color,
-                                          borderRadius: BorderRadius.circular(10),
+                              return GestureDetector(
+                                onTap: () {
+                                  HapticFeedback.selectionClick();
+                                  setState(() {
+                                    _pickedColor = record.color;
+                                    _hexCode = record.hex;
+                                    _rgbCode = record.rgba;
+                                    _colorName = record.name;
+                                  });
+                                },
+                                onLongPress: () {
+                                  HapticFeedback.mediumImpact();
+                                  setState(() {
+                                    _colorHistory.removeAt(index);
+                                  });
+                                  _saveHistoryToStorage();
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.all(10),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.08),
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(color: Colors.white.withOpacity(0.15), width: 1),
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Expanded(
+                                        child: Container(
+                                          width: double.infinity,
+                                          decoration: BoxDecoration(
+                                            color: record.color,
+                                            borderRadius: BorderRadius.circular(10),
+                                          ),
                                         ),
                                       ),
-                                    ),
-                                    const SizedBox(height: 6),
-                                    Text(
-                                      record.name,
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.w600,
+                                      const SizedBox(height: 6),
+                                      Text(
+                                        record.name,
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
                                       ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                    Text(
-                                      record.hex,
-                                      style: const TextStyle(
-                                        color: Colors.white70,
-                                        fontSize: 9,
-                                        letterSpacing: 0.3,
+                                      Text(
+                                        record.hex,
+                                        style: const TextStyle(
+                                          color: Colors.white70,
+                                          fontSize: 9,
+                                          letterSpacing: 0.3,
+                                        ),
                                       ),
-                                    ),
-                                  ],
+                                    ],
+                                  ),
                                 ),
                               );
                             },
