@@ -1,7 +1,7 @@
 <p align="center">
-  <img src="assets/logo.png" alt="ChromaPick Logo" width="90" style="margin-bottom: 10px;" />
+  <img src="assets/logo.png" alt="ColorPicker Logo" width="90" style="margin-bottom: 10px;" />
   <h1 align="center" style="font-weight: 800; letter-spacing: -1px;">ColorPicker</h1>
-  <p align="center" style="font-size: 1.2rem; color: #6a737d;">Advanced Camera Color Picker & Asian Paints Matcher</p>
+  <p align="center" style="font-size: 1.2rem; color: #6a737d;">Advanced Camera Color Picker & AI Design Assistant</p>
 </p>
 
 <p align="center">
@@ -20,16 +20,16 @@
 </p>
 
 <p align="center">
-  <img src="https://readme-typing-svg.herokuapp.com?font=Fira+Code&weight=600&pause=1500&color=02569B&center=true&vCenter=true&width=500&lines=Capture+Real-World+Colors+Instantly;Match+with+Asian+Paints+Database;Beautiful+Glassmorphic+UI" alt="Typing SVG" />
+  <img src="https://readme-typing-svg.herokuapp.com?font=Fira+Code&weight=600&pause=1500&color=02569B&center=true&vCenter=true&width=500&lines=Capture+Real-World+Colors+Instantly;Match+with+Asian+Paints+Database;AI-Powered+Design+Suggestions" alt="Typing SVG" />
 </p>
 
 <p align="center">
   <img src="assets/demo.gif" alt="App Demo" width="300" style="border-radius: 20px; box-shadow: 0 20px 40px rgba(0,0,0,0.25); border: 4px solid #ffffff;" />
   <br>
-  <sub><i> Drag, match, and save colors in real-time</i></sub>
+  <sub><i>Drag, match, save, and get AI design tips in real-time</i></sub>
 </p>
 
-> A beautiful, glassmorphic Flutter application that lets you capture real-world colors using your live camera or photo gallery, instantly matching them to a comprehensive **Asian Paints** database.
+> A beautiful, glassmorphic Flutter application that lets you capture real-world colors using your live camera or photo gallery, instantly matches them to a comprehensive **Asian Paints** database, and provides **AI-powered interior design suggestions**.
 
 ---
 
@@ -38,6 +38,7 @@
 -  **Live Camera Picking**: Drag a precision crosshair over the live camera feed to sample colors in real-time.
 -  **Gallery Support**: Import images from your device to extract colors from existing photos.
 -  **Asian Paints Database**: Instantly matches sampled RGB values to the closest official Asian Paints color name (Melange, Brights, and Whites).
+-  **AI Design Assistant**: Get instant, professional, emoji-free interior design tips, complementary color suggestions, and lighting advice tailored to your selected color.
 -  **Glassmorphism UI**: Modern, frosted-glass interface with smooth animations and transparent overlays.
 -  **Rich Haptic Feedback**: Tactile vibrations on every interaction (button taps, crosshair dragging, saving, and deleting).
 -  **Persistent History**: Automatically saves your captured colors, HEX, RGB, and timestamps locally.
@@ -53,7 +54,7 @@
   <img src="https://img.shields.io/badge/Camera_API-green?logo=android" alt="Camera" />
   <img src="https://img.shields.io/badge/Image_Picker-orange?logo=files" alt="Image Picker" />
   <img src="https://img.shields.io/badge/Shared_Preferences-yellow?logo=database" alt="Shared Preferences" />
-  <img src="https://img.shields.io/badge/Haptic_Feedback-purple" alt="Haptics" />
+  <img src="https://img.shields.io/badge/OpenRouter_AI-7c3aed?logo=openai&logoColor=white" alt="AI Assistant" />
 </p>
 
 ---
@@ -77,7 +78,15 @@ cd color_picker
 flutter pub get
 ```
 
-### 4. Run the App
+### 4. Configure Environment (For AI Features)
+1. Create a file named `.env` in the root directory (same level as `pubspec.yaml`).
+2. Add your free OpenRouter API key:
+   ```env
+   OPENROUTER_API_KEY=your_api_key_here
+   ```
+3. Ensure `.env` is listed in your `.gitignore` to keep your key secure.
+
+### 5. Run the App
 ```bash
 flutter run
 ```
@@ -93,8 +102,9 @@ dart run flutter_launcher_icons
 1. **Grant Permissions**: Allow camera access when prompted on first launch.
 2. **Pick a Color**: Drag the `+` crosshair over any object in the live camera view or imported gallery image.
 3. **View Details**: The top-right glass panel will instantly display the closest **Asian Paints** color name, HEX code, and RGB values.
-4. **Save**: Tap the `Save` icon to store the color in your persistent history sheet (complete with date and time).
-5. **Manage History**: Tap any saved color in the bottom sheet to reload it, or **long-press** to delete it.
+4. **Get AI Tips**: Tap the ✨ button to receive professional, emoji-free interior design suggestions tailored to your selected color.
+5. **Save**: Tap the `Save` icon to store the color in your persistent history sheet (complete with date and time).
+6. **Manage History**: Tap any saved color in the bottom sheet to reload it, or **long-press** to delete it.
 
 ---
 
